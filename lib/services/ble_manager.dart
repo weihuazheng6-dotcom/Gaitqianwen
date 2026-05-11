@@ -1,11 +1,17 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import '../models/gait_data.dart';
 
-enum DeviceRole { leftPressure, rightPressure, leftIMU, rightIMU }
+enum DeviceRole {
+  leftPressure,
+  rightPressure,
+  leftIMU,
+  rightIMU,
+}
 
 class DeviceConnection {
   final BluetoothDevice device;
@@ -18,15 +24,21 @@ class DeviceConnection {
 
   String get roleStr {
     switch (role) {
-      case DeviceRole.leftPressure: return 'left_pressure';
-      case DeviceRole.rightPressure: return 'right_pressure';
-      case DeviceRole.leftIMU: return 'left_imu';
-      case DeviceRole.rightIMU: return 'right_imu';
+      case DeviceRole.leftPressure:
+        return 'left_pressure';
+      case DeviceRole.rightPressure:
+        return 'right_pressure';
+      case DeviceRole.leftIMU:
+        return 'left_imu';
+      case DeviceRole.rightIMU:
+        return 'right_imu';
     }
   }
 
-  DeviceConnection({required this.device, required this.role})
-      : data = SensorData(deviceId: device.remoteId.str, role: '') {
+  DeviceConnection({
+    required this.device,
+    required this.role,
+  }) : data = SensorData(deviceId: device.remoteId.str, role: '') {
     data.role = roleStr;
   }
 }
@@ -65,7 +77,8 @@ class BleManager extends ChangeNotifier {
     }
   }
 
-  bool isConnected(DeviceRole role) => _connections.values.any((c) => c.role == role);
+  bool isConnected(DeviceRole role) =>
+      _connections.values.any((c) => c.role == role);
 
   Future<void> startScan({int timeoutSeconds = 12}) async {
     try {
@@ -86,7 +99,11 @@ class BleManager extends ChangeNotifier {
   }
 
   Future<void> stopScan() async {
-    try { await _ble.stopScan(); } catch (e) { debugPrint('Stop scan error: $e'); }
+    try {
+      await _ble.stopScan();
+    } catch (e) {
+      debugPrint('Stop scan error: $e');
+    }
   }
 
   Future<void> connectDevice(BluetoothDevice device, DeviceRole role) async {
@@ -100,7 +117,8 @@ class BleManager extends ChangeNotifier {
           break;
         }
       }
-      await device.connect(autoConnect: false, timeout: const Duration(seconds: 10));
+      await device.connect(
+          autoConnect: false, timeout: const Duration(seconds: 10));
       device.connectionState.listen((cs) {
         connectionStates[device.remoteId.str] = cs;
         notifyListeners();
@@ -112,20 +130,28 @@ class BleManager extends ChangeNotifier {
       DeviceConnection dc = DeviceConnection(device: device, role: role);
       _pressureBuffers[device.remoteId.str] = StringBuffer();
       _imuBuffers[device.remoteId.str] = [];
-      bool isPressure = role == DeviceRole.leftPressure || role == DeviceRole.rightPressure;
+      bool isPressure = role == DeviceRole.leftPressure ||
+          role == DeviceRole.rightPressure;
 
       for (var service in services) {
-        if (isPressure && service.uuid.toString() == '0000ffe0-0000-1000-8000-00805f9a34fb') {
+        if (isPressure &&
+            service.uuid.toString() ==
+                '0000ffe0-0000-1000-8000-00805f9a34fb') {
           for (var char in service.characteristics) {
-            if (char.uuid.toString() == '0000ffe1-0000-1000-8000-00805f9a34fb') {
+            if (char.uuid.toString() ==
+                '0000ffe1-0000-1000-8000-00805f9a34fb') {
               dc.notifyChar = char;
             }
           }
-        } else if (!isPressure && service.uuid.toString() == '0000ffe5-0000-1000-8000-00805f9a34fb') {
+        } else if (!isPressure &&
+            service.uuid.toString() ==
+                '0000ffe5-0000-1000-8000-00805f9a34fb') {
           for (var char in service.characteristics) {
-            if (char.uuid.toString() == '0000ffe4-0000-1000-8000-00805f9a34fb') {
+            if (char.uuid.toString() ==
+                '0000ffe4-0000-1000-8000-00805f9a34fb') {
               dc.readChar = char;
-            } else if (char.uuid.toString() == '0000ffe9-0000-1000-8000-00805f9a34fb') {
+            } else if (char.uuid.toString() ==
+                '0000ffe9-0000-1000-8000-00805f9a34fb') {
               dc.writeChar = char;
             }
           }
@@ -142,11 +168,14 @@ class BleManager extends ChangeNotifier {
       }
 
       _connections[device.remoteId.str] = dc;
-      connectionStates[device.remoteId.str] = BluetoothConnectionState.connected;
+      connectionStates[device.remoteId.str] =
+          BluetoothConnectionState.connected;
       notifyListeners();
-      debugPrint('${DateTime.now().toIso8601String()} - ${device.remoteId.str} connected as ${dc.roleStr}');
+      debugPrint(
+          '${DateTime.now().toIso8601String()} - ${device.remoteId.str} connected as ${dc.roleStr}');
     } catch (e) {
-      connectionStates[device.remoteId.str] = BluetoothConnectionState.disconnected;
+      connectionStates[device.remoteId.str] =
+          BluetoothConnectionState.disconnected;
       notifyListeners();
       rethrow;
     }
@@ -223,25 +252,40 @@ class BleManager extends ChangeNotifier {
   void _parseIMUFrame(DeviceConnection dc, List<int> frame) {
     ByteData bd = ByteData.sublistView(Uint8List.fromList(frame));
     int offset = 2;
-    int accXraw = bd.getInt16(offset, Endian.little); offset += 2;
-    int accYraw = bd.getInt16(offset, Endian.little); offset += 2;
-    int accZraw = bd.getInt16(offset, Endian.little); offset += 2;
-    int gyroXraw = bd.getInt16(offset, Endian.little); offset += 2;
-    int gyroYraw = bd.getInt16(offset, Endian.little); offset += 2;
-    int gyroZraw = bd.getInt16(offset, Endian.little); offset += 2;
-    int rollRaw = bd.getInt16(offset, Endian.little); offset += 2;
-    int pitchRaw = bd.getInt16(offset, Endian.little); offset += 2;
-    int yawRaw = bd.getInt16(offset, Endian.little); offset += 2;
 
-    dc.data.accX = (accXraw / 32768.0) * 16.0;
-    dc.data.accY = (accYraw / 32768.0) * 16.0;
-    dc.data.accZ = (accZraw / 32768.0) * 16.0;
+    int accXraw = bd.getInt16(offset, Endian.little);
+    offset += 2;
+    int accYraw = bd.getInt16(offset, Endian.little);
+    offset += 2;
+    int accZraw = bd.getInt16(offset, Endian.little);
+    offset += 2;
+
+    int gyroXraw = bd.getInt16(offset, Endian.little);
+    offset += 2;
+    int gyroYraw = bd.getInt16(offset, Endian.little);
+    offset += 2;
+    int gyroZraw = bd.getInt16(offset, Endian.little);
+    offset += 2;
+
+    int rollRaw = bd.getInt16(offset, Endian.little);
+    offset += 2;
+    int pitchRaw = bd.getInt16(offset, Endian.little);
+    offset += 2;
+    int yawRaw = bd.getInt16(offset, Endian.little);
+
+    // 加速度：原始值 → g → m/s² (协议：/32768*16g，g=9.8)
+    dc.data.accX = (accXraw / 32768.0) * 16.0 * 9.8;
+    dc.data.accY = (accYraw / 32768.0) * 16.0 * 9.8;
+    dc.data.accZ = (accZraw / 32768.0) * 16.0 * 9.8;
+
     dc.data.gyroX = (gyroXraw / 32768.0) * 2000.0;
     dc.data.gyroY = (gyroYraw / 32768.0) * 2000.0;
     dc.data.gyroZ = (gyroZraw / 32768.0) * 2000.0;
+
     dc.data.roll = (rollRaw / 32768.0) * 180.0;
     dc.data.pitch = (pitchRaw / 32768.0) * 180.0;
     dc.data.yaw = (yawRaw / 32768.0) * 180.0;
+
     dc.data.lastUpdated = DateTime.now();
     notifyListeners();
   }
@@ -282,7 +326,9 @@ class BleManager extends ChangeNotifier {
     if (isRecording) return;
     isRecording = true;
     records.clear();
-    _recordTimer = Timer.periodic(const Duration(milliseconds: 100), (_) => _sampleRecord());
+    _recordTimer = Timer.periodic(const Duration(milliseconds: 100), (_) {
+      _sampleRecord();
+    });
     notifyListeners();
   }
 
@@ -304,14 +350,30 @@ class BleManager extends ChangeNotifier {
     records.add(RecordEntry(
       timestamp: DateTime.now(),
       label: currentLabel,
-      p1R: rp.pressure1, p2R: rp.pressure2, p3R: rp.pressure3,
-      accXR: ri.accX, accYR: ri.accY, accZR: ri.accZ,
-      gyroXR: ri.gyroX, gyroYR: ri.gyroY, gyroZR: ri.gyroZ,
-      rollR: ri.roll, pitchR: ri.pitch, yawR: ri.yaw,
-      p1L: lp.pressure1, p2L: lp.pressure2, p3L: lp.pressure3,
-      accXL: li.accX, accYL: li.accY, accZL: li.accZ,
-      gyroXL: li.gyroX, gyroYL: li.gyroY, gyroZL: li.gyroZ,
-      rollL: li.roll, pitchL: li.pitch, yawL: li.yaw,
+      p1R: rp.pressure1,
+      p2R: rp.pressure2,
+      p3R: rp.pressure3,
+      accXR: ri.accX,
+      accYR: ri.accY,
+      accZR: ri.accZ,
+      gyroXR: ri.gyroX,
+      gyroYR: ri.gyroY,
+      gyroZR: ri.gyroZ,
+      rollR: ri.roll,
+      pitchR: ri.pitch,
+      yawR: ri.yaw,
+      p1L: lp.pressure1,
+      p2L: lp.pressure2,
+      p3L: lp.pressure3,
+      accXL: li.accX,
+      accYL: li.accY,
+      accZL: li.accZ,
+      gyroXL: li.gyroX,
+      gyroYL: li.gyroY,
+      gyroZL: li.gyroZ,
+      rollL: li.roll,
+      pitchL: li.pitch,
+      yawL: li.yaw,
     ));
     notifyListeners();
   }
