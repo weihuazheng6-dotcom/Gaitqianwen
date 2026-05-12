@@ -18,8 +18,9 @@ jobs:
         with:
           flutter-version: '3.24.0'
           channel: 'stable'
-      - run: flutter pub get
-      - run: flutter build apk --debug
+      - - run: flutter clean
+- run: flutter pub get
+- run: flutter build apk --debug
       - uses: actions/upload-artifact@v4
         with:
           name: gait-detector-debug-apk
